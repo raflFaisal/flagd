@@ -183,12 +183,24 @@ func TestSanitizeURI(t *testing.T) {
 		{"strips everything combined",
 			"https://user:pass@api.example.com/flags?token=abc#top",
 			"https://api.example.com/flags"},
+
+		// Fail-closed: url.Parse rejects these, so we return "" rather than a
+		// partially-sanitized string that could still preserve userinfo.
+		{"malformed escape with userinfo fails closed",
+			"https://user:hunter2@api.example.com/flags%ZZ",
+			""},
+		{"control character fails closed",
+			"https://user:hunter2@api.example.com/flags\x7f",
+			""},
 	}
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got := SanitizeURI(tc.in)
 			require.Equal(t, tc.want, got)
+			// Extra guard: even on the fallback path, no known secret marker
+			// from a malformed input must survive into the output.
+			require.NotContains(t, got, "hunter2", "userinfo password leaked from %q", tc.in)
 		})
 	}
 }

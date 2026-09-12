@@ -15,7 +15,6 @@ package syncmetrics
 import (
 	"context"
 	"net/url"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -132,19 +131,15 @@ func (r *Recorder) RecordFlagConfigReceived(ctx context.Context, sourceType, uri
 
 // SanitizeURI strips userinfo, query, and fragment from a sync-source URI so
 // token- or credential-bearing URIs don't land as Prometheus attribute values.
+// Fails closed: any input url.Parse rejects returns "" rather than a partially
+// sanitized string that could still preserve userinfo.
 func SanitizeURI(raw string) string {
 	if raw == "" {
 		return ""
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		// Fallback for input url.Parse rejects — still drop query and fragment.
-		for _, sep := range []string{"?", "#"} {
-			if i := strings.Index(raw, sep); i >= 0 {
-				raw = raw[:i]
-			}
-		}
-		return raw
+		return ""
 	}
 	u.User = nil
 	u.RawQuery = ""
